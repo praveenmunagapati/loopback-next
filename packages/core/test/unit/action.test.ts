@@ -4,161 +4,25 @@
 // License text available at https://opensource.org/licenses/MIT
 
 import {expect} from '@loopback/testlab';
-import * as util from 'util';
-import {
-  Context,
-  inject,
-  Setter,
-  Reflector,
-  BindingScope,
-  invokeMethod,
-} from '@loopback/context';
+import {Context, Reflector, BindingScope} from '@loopback/context';
 
-import {action, inspectAction, sortActions, sortActionClasses} from '../..';
+import {inspectAction, sortActions, sortActionClasses} from '../..';
 
 // tslint:disable:no-any
+
+import {
+  StopWatch,
+  Logger,
+  Tracing,
+  MethodInvoker,
+  MyDummyAction,
+  HttpServer,
+} from './actions';
+
 describe('Action', () => {
   let ctx: Context;
 
   beforeEach(givenContext);
-
-  /**
-   * Mockup http header
-   */
-  interface HttpRequest {
-    url: string;
-    verb: string;
-    headers: {[header: string]: string};
-    query: {[param: string]: string};
-  }
-
-  /**
-   * StopWatch records duration for a request. There are two action methods:
-   * - start: Start the timer
-   * - stop: Stop the timer and calculates the duration
-   */
-  @action({group: 'timer-group'})
-  class StopWatch {
-    /**
-     * Start the timer (only to be invoked after http.request is set up)
-     * @param startTime Use a setter to bind `startTime`
-     */
-    @action({dependsOn: ['http.request']})
-    start(@inject.setter('startTime') startTime: Setter<Date>) {
-      startTime(new Date());
-    }
-
-    /**
-     * Calculate the duration
-     * @param startTime
-     */
-    @action({bindsReturnValueAs: 'duration', dependsOn: ['invocation']})
-    stop(@inject('startTime') startTime: Date): number {
-      return new Date().getTime() - startTime.getTime();
-    }
-  }
-
-  /**
-   * Log the tracing id and duration for a given http request
-   */
-  @action({fulfills: ['logging']})
-  class Logger {
-    /**
-     * @param prefix The logging prefix
-     */
-    constructor(@inject('log.prefix') private prefix: string) {}
-
-    /**
-     * The logging level
-     */
-    @inject('log.level') level: string = 'INFO';
-
-    private lastMessage: string; // For testing
-
-    /**
-     * Log the request tracing id and duration
-     * @param tracingId The tracing id
-     * @param duration The duration
-     */
-    @action({dependsOn: ['invocation']})
-    log(
-      @inject('tracingId') tracingId: string,
-      @inject('duration') duration: number,
-    ) {
-      this.lastMessage = util.format(
-        `[%s][%s] TracingId: %s, Duration: %d`,
-        this.level,
-        this.prefix,
-        tracingId,
-        duration,
-      );
-      console.log(this.lastMessage);
-    }
-  }
-
-  /**
-   * Set up tracing id
-   */
-  @action()
-  class Tracing {
-    /**
-     * Check and generate the tracing id for the http request
-     * @param req The http request
-     */
-    @action({bindsReturnValueAs: 'tracingId'})
-    setupTracingId(@inject('http.request') req: HttpRequest): string {
-      let id = req.headers['X-Tracing-Id'];
-      if (!id) {
-        id = req.headers['X-Tracing-Id'] = 'tracing:' + process.hrtime();
-      }
-      return id;
-    }
-  }
-
-  /**
-   * Set up http request
-   */
-  @action()
-  class HttpServer {
-    @action()
-    createRequest(
-      @inject.setter('http.request') httpRequestSetter: Setter<HttpRequest>,
-    ) {
-      httpRequestSetter({
-        verb: 'get',
-        url: 'http://localhost:3000',
-        query: {},
-        headers: {},
-      });
-    }
-  }
-
-  /**
-   * Mock-up invoker for controller methods
-   */
-  @action()
-  class MethodInvoker {
-    @action({
-      bindsReturnValueAs: 'result',
-      fulfills: ['invocation'],
-      dependsOn: ['tracingId'],
-    })
-    // FIXME(rfeng) Allow controller.name/method/args to be injected
-    invoke(): any {
-      return new Promise((resolve, reject) => {
-        // Artificially add 10ms delay to make duration significant
-        setTimeout(() => {
-          resolve('Hello, world');
-        }, 10);
-      });
-    }
-  }
-
-  @action()
-  class MyDummyAction {
-    @action()
-    static test(@inject('foo') foo: string) {}
-  }
 
   it('captures class level action metadata for StopWatch', () => {
     const meta = Reflector.getMetadata('action', StopWatch);
@@ -351,33 +215,6 @@ describe('Action', () => {
   "result" [shape="ellipse"];
 }
 `,
-    );
-  });
-
-  it('creates a sequence of actions', async () => {
-    ctx.bind('log.level').to('INFO');
-    ctx.bind('log.prefix').to('LoopBack');
-
-    const classes = [Logger, StopWatch, HttpServer, MethodInvoker, Tracing];
-    const actions = sortActions(classes, true, true).actions;
-
-    for (const c of actions.filter((a: any) => !a.method)) {
-      ctx
-        .bind('actions.' + c.target.name)
-        .toClass(c.target)
-        .inScope(BindingScope.SINGLETON);
-    }
-
-    for (const m of actions.filter((a: any) => !!a.method)) {
-      const v = await ctx.get('actions.' + m.actionClass.target.name);
-      const result = await invokeMethod(v, m.method, ctx);
-      if (result !== undefined && m.bindsReturnValueAs) {
-        ctx.bind(m.bindsReturnValueAs).to(result);
-      }
-    }
-    const logger = await ctx.get('actions.Logger');
-    expect(logger.lastMessage).to.match(
-      /\[INFO\]\[LoopBack\] TracingId: tracing:\d+,\d+, Duration: \d+/,
     );
   });
 

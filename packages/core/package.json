@@ -28,7 +28,9 @@
     "topo": "^3.0.0"
   },
   "devDependencies": {
-    "@loopback/testlab": "^4.0.0-alpha.10"
+    "@loopback/testlab": "^4.0.0-alpha.10",
+    "@types/uuid": "^3.4.2",
+    "uuid": "^3.1.0"
   },
   "files": [
     "README.md",

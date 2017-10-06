@@ -42,6 +42,9 @@ export interface ActionMetadata {
   target: any;
 }
 
+/**
+ * Metadata for an action method
+ */
 export interface ActionMethod extends ActionMetadata {
   /**
    * Name of the method
@@ -61,8 +64,18 @@ export interface ActionMethod extends ActionMetadata {
   isStatic: boolean;
 }
 
+/**
+ * Metadata for an action class
+ */
 export interface ActionClass extends ActionMetadata {
+  /**
+   * Prototype methods keyed by the method name
+   */
   methods: {[name: string]: ActionMethod};
+  /**
+   * Static methods keyed by the method name
+   */
+  staticMethods: {[name: string]: ActionMethod};
 }
 
 /**
@@ -152,9 +165,11 @@ export function action(meta?: Partial<ActionClass | ActionMethod>) {
           fulfills: [],
           dependsOn: [],
         }
-      : {
+      : <ActionClass>{
           target,
           group,
+          methods: {},
+          staticMethods: {},
           fulfills: [],
           dependsOn: [],
         };
@@ -200,6 +215,19 @@ export function action(meta?: Partial<ActionClass | ActionMethod>) {
   };
 }
 
+function copyObject(obj: {[name: string]: any}) {
+  const copy: {[name: string]: any} = {};
+  for (const p in obj) {
+    const val = obj[p];
+    if (Array.isArray(val)) {
+      copy[p] = val.slice(0); // Get a shallow copy
+    } else {
+      copy[p] = val;
+    }
+  }
+  return copy;
+}
+
 /**
  * Inspect action metadata for a given class
  * @param cls Action class
@@ -214,7 +242,18 @@ export function inspectAction(cls: Constructor<any>) {
     Reflector.getMetadata(ACTION_METHODS_KEY, cls.prototype),
   );
   for (const m in descriptor.methods) {
-    descriptor.methods[m].actionClass = descriptor;
+    const method = copyObject(descriptor.methods[m]) as ActionMethod;
+    method.actionClass = descriptor;
+    descriptor.methods[m] = method;
+  }
+  descriptor.staticMethods = Object.assign(
+    {},
+    Reflector.getMetadata(ACTION_METHODS_KEY, cls),
+  );
+  for (const m in descriptor.staticMethods) {
+    const method = copyObject(descriptor.staticMethods[m]) as ActionMethod;
+    method.actionClass = descriptor;
+    descriptor.staticMethods[m] = method;
   }
   return descriptor;
 }
@@ -336,6 +375,22 @@ export class ActionGraph {
   toDot(attrs?: GraphvizNodeAttributes) {
     return generateDot(this.graph, attrs);
   }
+
+  getClasses(): {[name: string]: ActionClass} {
+    const classes: {[name: string]: ActionClass} = {};
+    this.actions.filter(a => a.methods != null).forEach(a => {
+      classes[a.group] = a;
+    });
+    return classes;
+  }
+
+  getMethods(): {[name: string]: ActionMethod} {
+    const methods: {[name: string]: ActionMethod} = {};
+    this.actions.filter(a => a.method != null).forEach(a => {
+      methods[a.group] = a;
+    });
+    return methods;
+  }
 }
 
 /**
@@ -379,8 +434,14 @@ export function sortActions(
       const method = meta.methods[m];
       if (includeClasses) {
         // Make the method depend on the class
-        method.dependsOn.push(meta.group);
+        if (!method.dependsOn.includes(meta.group)) {
+          method.dependsOn.push(meta.group);
+        }
       }
+      addActionToGraph(graph, method);
+    }
+    for (const m in meta.staticMethods) {
+      const method = meta.staticMethods[m];
       addActionToGraph(graph, method);
     }
   }
