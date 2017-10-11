@@ -25,13 +25,14 @@ describe('Bootstrapping with RestComponent', () => {
 
     async function givenAppWithUserDefinedSequence() {
       class UserDefinedSequence extends DefaultSequence {}
-      app = new Application({
-        components: [RestComponent],
-        rest: {
+      app = new Application();
+      const options = {
+        config: {
           sequence: UserDefinedSequence,
           port: 0,
         },
-      });
+      };
+      app.component(RestComponent, options);
       server = await app.getServer(RestServer);
     }
   });

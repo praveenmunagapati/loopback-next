@@ -6,7 +6,7 @@
 export namespace CoreBindings {
   // application
   export const APPLICATION_INSTANCE = 'application.instance';
-  export const APPLICATION_CONFIG = 'application.config';
+  export const APPLICATION_CONFIG = 'config';
 
   // server
   export const SERVERS = 'servers';

@@ -5,6 +5,7 @@
 
 export {
   Binding,
+  BindingDependencies,
   BindingScope,
   BindingType,
   BoundValue,

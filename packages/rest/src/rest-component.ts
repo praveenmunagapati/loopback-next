@@ -7,10 +7,9 @@ import {
   Component,
   CoreBindings,
   ProviderMap,
-  Server,
   Application,
 } from '@loopback/core';
-import {inject, Constructor} from '@loopback/context';
+import {inject} from '@loopback/context';
 import {RestBindings} from './keys';
 import {LogErrorProvider} from './providers';
 import {
@@ -35,20 +34,26 @@ export class RestComponent implements Component {
     [RestBindings.SequenceActions.PARSE_PARAMS]: ParseParamsProvider,
     [RestBindings.SequenceActions.SEND]: SendProvider,
   };
-  servers: {
-    [name: string]: Constructor<Server>;
-  } = {
-    RestServer,
-  };
 
   constructor(
     @inject(CoreBindings.APPLICATION_INSTANCE) app: Application,
-    @inject(RestBindings.CONFIG) config?: RestComponentConfig,
+    @inject(CoreBindings.APPLICATION_CONFIG) config?: RestComponentConfig,
   ) {
-    if (!config) config = {};
+    if (!config) {
+      config = {};
+    }
+    if (config.name) {
+      app.server(RestServer, config.name).options({
+        config,
+      });
+    } else {
+      app.server(RestServer).options({
+        config,
+      });
+    }
   }
 }
 
 export interface RestComponentConfig extends RestServerConfig {
-  // TODO(kevin): Extend this interface def to include multiple servers?
+  name?: string;
 }

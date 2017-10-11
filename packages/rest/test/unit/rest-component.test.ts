@@ -84,4 +84,18 @@ describe('RestComponent', () => {
       });
     });
   });
+
+  describe('Configuration', () => {
+    it('allows configuration via component options', async () => {
+      const app = new Application();
+      const options = {
+        config: {
+          name: 'foo',
+        },
+      };
+      app.component(RestComponent, options);
+      const server = await app.getServer('foo');
+      expect(server).to.not.be.null();
+    });
+  });
 });

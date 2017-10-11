@@ -3,7 +3,13 @@
 // This file is licensed under the MIT License.
 // License text available at https://opensource.org/licenses/MIT
 
-import {Context, Binding, BindingScope, Constructor} from '@loopback/context';
+import {
+  Context,
+  Binding,
+  BindingDependencies,
+  BindingScope,
+  Constructor,
+} from '@loopback/context';
 import {Server} from './server';
 import {Component, mountComponent} from './component';
 import {CoreBindings} from './keys';
@@ -171,6 +177,7 @@ export class Application extends Context {
    * Add a component to this application.
    *
    * @param component The component to add.
+   * @param options= The options for this component.
    *
    * ```ts
    *
@@ -186,12 +193,17 @@ export class Application extends Context {
    * app.component(ProductComponent);
    * ```
    */
-  public component(component: Constructor<Component>): Binding {
+  public component(
+    component: Constructor<Component>,
+    options?: BindingDependencies,
+  ) {
     const componentKey = `components.${component.name}`;
     const binding = this.bind(componentKey).toClass(component);
+    if (options) {
+      binding.options(options);
+    }
     const instance = this.getSync(componentKey);
     mountComponent(this, instance);
-    return binding;
   }
 }
 
