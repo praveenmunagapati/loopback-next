@@ -30,6 +30,12 @@ export class Application extends Context {
         this.server(options.servers[name], name);
       }
     }
+
+    if (options.controllers) {
+      for (const controller in options.controllers) {
+        this.controller(controller);
+      }
+    }
   }
 
   /**
