@@ -32,8 +32,8 @@ export class Application extends Context {
     }
 
     if (options.controllers) {
-      for (const controller in options.controllers) {
-        this.controller(controller);
+      for (const ctor of options.controllers) {
+        this.controller(ctor);
       }
     }
   }
@@ -196,6 +196,7 @@ export class Application extends Context {
 
 export interface ApplicationConfig {
   components?: Array<Constructor<Component>>;
+  controllers?: Array<ControllerClass>;
   servers?: {
     [name: string]: Constructor<Server>;
   };
