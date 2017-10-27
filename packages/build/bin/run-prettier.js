@@ -19,14 +19,20 @@ function run(argv) {
   const utils = require('./utils');
 
   const prettierOpts = argv.slice(2);
-  const configFile = utils.getConfigFile('.prettierrc');
 
-  const args = [
-    '--config',
-    // It's important to keep this path relative to rootDir
-    configFile,
-    ...prettierOpts,
-  ];
+  const isConfigSet = utils.isOptionSet(
+    prettierOpts,
+    '--find-config-path',
+    '--no-config',
+    '--config'
+  );
+  const configFile = isConfigSet ? null : utils.getConfigFile('.prettierrc');
+
+  const args = ['--config-precedence', 'prefer-file'];
+  if (configFile) {
+    args.push('--config', configFile);
+  }
+  args.push(...prettierOpts);
 
   return utils.runCLI('prettier/bin/prettier', args);
 }

@@ -7,7 +7,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const spawn = require('child_process').spawn;
+const spawn = require('cross-spawn');
+const debug = require('debug')('loopback:build');
 
 /**
  * Get the Node.js compilation target - es2017 or es2015
@@ -19,7 +20,7 @@ function getCompilationTarget() {
 
 /**
  * Get the distribution name
- * @param {*} target 
+ * @param {*} target
  */
 function getDistribution(target) {
   if (!target) {
@@ -58,21 +59,29 @@ function getPackageDir() {
 
 /**
  * Get config file
- * @param {*} name 
+ * @param {string} name Preferred file
+ * @param {string} defaultName Default file
  */
-function getConfigFile(name) {
+function getConfigFile(name, defaultName) {
   var dir = getPackageDir();
   var configFile = path.join(dir, name);
   if (!fs.existsSync(configFile)) {
-    // Fall back to config/
-    configFile = path.join(getRootDir(), 'config/' + name);
+    if (defaultName) {
+      configFile = path.join(dir, name);
+      if (!fs.existsSync(configFile)) {
+        configFile = path.join(getRootDir(), 'config/' + name);
+      }
+    } else {
+      // Fall back to config/
+      configFile = path.join(getRootDir(), 'config/' + name);
+    }
   }
   return configFile;
 }
 
 /**
  * Resolve the path of the cli command
- * @param {string} cli 
+ * @param {string} cli
  */
 function resolveCLI(cli) {
   const path = './node_modules/' + cli;
@@ -91,15 +100,19 @@ function resolveCLI(cli) {
 function runCLI(cli, args) {
   cli = resolveCLI(cli);
   args = [cli].concat(args);
-  console.log('%s', args.join(' '));
+  debug('%s', args.join(' '));
   var child = spawn(
     process.execPath, // Typically '/usr/local/bin/node'
     args,
     {
       stdio: 'inherit',
+      env: Object.create(process.env),
     }
   );
-  child.on('close', (number, signal) => (process.exitCode = number));
+  child.on('close', (code, signal) => {
+    debug('%s exits: %d', cli, code);
+    process.exitCode = code;
+  });
   return child;
 }
 
@@ -109,16 +122,30 @@ function runCLI(cli, args) {
  * @param {string[]} args The arguments
  */
 function runShell(command, args) {
-  console.log('%s %s', command, args.join(' '));
+  args = args.map(a => JSON.stringify(a));
+  debug('%s %s', command, args.join(' '));
   var child = spawn(command, args, {
     stdio: 'inherit',
+    env: Object.create(process.env),
     // On Windows, npm creates `.cmd` files instead of symlinks in
     // `node_modules/.bin` folder. These files cannot be executed directly,
     // only via a shell.
     shell: true,
   });
-  child.on('close', (number, signal) => (process.exitCode = number));
+  child.on('close', (code, signal) => {
+    debug('%s exits: %d', command, code);
+    process.exitCode = code;
+  });
   return child;
+}
+
+/**
+ * Check if one of the option names is set by the opts
+ * @param {string[]} opts
+ * @param {string[]} optionNames
+ */
+function isOptionSet(opts, ...optionNames) {
+  return opts.some(o => optionNames.indexOf(o) !== -1);
 }
 
 exports.getCompilationTarget = getCompilationTarget;
@@ -129,3 +156,4 @@ exports.getConfigFile = getConfigFile;
 exports.resolveCLI = resolveCLI;
 exports.runCLI = runCLI;
 exports.runShell = runShell;
+exports.isOptionSet = isOptionSet;
